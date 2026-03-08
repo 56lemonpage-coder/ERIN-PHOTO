@@ -84,6 +84,8 @@ header { background:var(--surface); border-bottom:1px solid var(--border); paddi
   pointer-events:none;
   user-select:none;
   -webkit-user-drag:none;
+  image-rendering: -webkit-optimize-contrast;
+  image-rendering: high-quality;
 }
 
 .slot-placeholder { display:flex; flex-direction:column; align-items:center; gap:0.38rem; color:var(--text-muted); pointer-events:none; z-index:1; transition:color 0.15s; }
@@ -560,10 +562,16 @@ function triggerUpload(i) {
       const img = new Image();
       img.onload = () => {
         const mode = currentMode();
-        const scale = getPreviewScale(mode);
-        // 원본 사이즈 1:1 — 실제 픽셀 그대로, 미리보기 축소비율만 반영
-        const imgScale = scale;
-        photoState[i] = { img, x: 0, y: 0, scale: imgScale };
+        const previewScale = getPreviewScale(mode);
+        const slot = mode.slots[i];
+
+        // 슬롯을 꽉 채우는 초기 배율 계산 (cover 방식)
+        // — 미리보기 슬롯 픽셀 크기 기준
+        const slotW = slot.w * previewScale;
+        const slotH = slot.h * previewScale;
+        const fitScale = Math.max(slotW / img.naturalWidth, slotH / img.naturalHeight);
+
+        photoState[i] = { img, x: 0, y: 0, scale: fitScale };
         buildStrip();
       };
       img.src = ev.target.result;
@@ -606,7 +614,7 @@ function setupWheel(slotEl, i, scale) {
   slotEl.addEventListener('wheel', e => {
     e.preventDefault();
     const delta = e.deltaY > 0 ? 0.9 : 1.1;
-    photoState[i].scale = Math.max(0.1, Math.min(20, photoState[i].scale * delta));
+    photoState[i].scale = Math.max(0.01, Math.min(50, photoState[i].scale * delta));
     refreshSlotImg(i);
   }, { passive: false });
 }
@@ -636,7 +644,7 @@ function setupTouch(slotEl, i, scale) {
       // pinch zoom
       const dist = (t) => Math.hypot(t[0].clientX-t[1].clientX, t[0].clientY-t[1].clientY);
       const ratio = dist(touches) / dist(lastTouches);
-      photoState[i].scale = Math.max(0.1, Math.min(20, photoState[i].scale * ratio));
+      photoState[i].scale = Math.max(0.01, Math.min(50, photoState[i].scale * ratio));
       // also drag from centroid
       const cx = t => (t[0].clientX + t[1].clientX) / 2;
       const cy = t => (t[0].clientY + t[1].clientY) / 2;
@@ -845,7 +853,7 @@ async function downloadStrip() {
   try {
     // 300dpi: 캔버스를 2배 픽셀로 렌더링 (출력 품질 향상)
     const DPI = 300;
-    const RENDER_SCALE = 2; // 2x → 실질적 고해상도
+    const RENDER_SCALE = 3; // 3x → 고해상도 출력 (확대 시 깨짐 방지)
 
     const canvas = document.createElement('canvas');
     canvas.width  = mode.realW * RENDER_SCALE;
@@ -870,9 +878,11 @@ async function downloadStrip() {
       ctx.rect(slot.x, slot.y, slot.w, slot.h);
       ctx.clip();
 
+      // ps.scale: 미리보기 픽셀 기준 배율
+      // 실제 출력 배율 = ps.scale / previewScale (미리보기→원본 역산)
       const realOffX = ps.x / previewScale;
       const realOffY = ps.y / previewScale;
-      const realScale = ps.scale / previewScale; // 원본 1:1 + 휠 조정 반영
+      const realScale = ps.scale / previewScale;
 
       const cx = slot.x + slot.w / 2 + realOffX;
       const cy = slot.y + slot.h / 2 + realOffY;
