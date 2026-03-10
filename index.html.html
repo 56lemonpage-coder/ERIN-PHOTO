@@ -1118,7 +1118,8 @@ async function exportHtml() {
       name: f.name,
       dataUrl: f.dataUrl,
       modeKey: f.modeKey,
-      size: f.size || ''
+      size: f.size || '',
+      folderName: f.folderName || ''
     })));
 
     // BUILTIN_FRAMES = [...]; 를 현재 프레임 데이터로 교체
