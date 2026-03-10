@@ -188,7 +188,29 @@ header { background:var(--surface); border-bottom:1px solid var(--border); paddi
 .sticker-handle.h-del  { top:-12px; right:-12px; background:#ff4757; cursor:pointer; font-weight:700; }
 .sticker-handle.h-rot  { top:-12px; left:-12px;  background:var(--accent); cursor:grab; }
 .sticker-handle.h-scale{ bottom:-12px; right:-12px; background:#2ed573; cursor:nwse-resize; font-weight:700; }
-.sticker-panel-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:0.4rem; }
+.sticker-panel-container { position:relative; display:flex; align-items:center; gap:0.5rem; }
+.sticker-scroll-viewport { flex:1; overflow:hidden; }
+.sticker-panel-grid { 
+  display:grid; 
+  grid-template-rows: repeat(2, auto); /* 두 줄 표시 */
+  grid-auto-flow: column; /* 가로로 흐르게 설정 */
+  grid-auto-columns: calc(25% - 0.3rem); /* 한 화면에 약 4개씩 보이도록 */
+  gap:0.4rem; 
+  transition: transform 0.3s ease;
+}
+.sticker-nav-btn {
+  width: 24px; height: 24px; border-radius: 50%; background: var(--accent); color: white;
+  border: none; cursor: pointer; display: flex; align-items: center; justify-content: center;
+  font-size: 14px; z-index: 10; opacity: 0.8;
+}
+.sticker-nav-btn:hover { opacity: 1; background: var(--accent-hover); }
+.sticker-nav-btn:disabled { opacity: 0.2; cursor: not-allowed; }
+.sticker-type-tabs { display: flex; gap: 0.5rem; margin-bottom: 0.6rem; border-bottom: 1px solid var(--border); padding-bottom: 0.4rem; }
+.sticker-type-tab { 
+  font-size: 0.75rem; font-weight: 600; color: var(--text-muted); cursor: pointer; 
+  padding: 0.2rem 0.5rem; border-radius: 4px; transition: all 0.15s;
+}
+.sticker-type-tab.active { color: var(--accent); background: var(--accent-light); }
 .sticker-thumb {
   aspect-ratio:1; border:2px solid var(--border); border-radius:var(--radius-sm);
   cursor:pointer; overflow:hidden; background:var(--bg);
@@ -402,10 +424,20 @@ header { background:var(--surface); border-bottom:1px solid var(--border); paddi
             <span id="stickerCount" style="font-size:0.72rem;color:var(--text-muted)">0개</span>
           </div>
           <div class="panel-body">
+            <div class="sticker-type-tabs">
+              <div class="sticker-type-tab active" onclick="switchStickerType('icon')" id="tab-sticker-icon">아이콘</div>
+              <div class="sticker-type-tab" onclick="switchStickerType('text')" id="tab-sticker-text">텍스트</div>
+            </div>
             <div id="noStickerNotice" style="font-size:0.74rem;color:var(--text-muted);text-align:center;padding:1rem;display:block;">
               관리자가 스티커를 등록하면 여기에 표시됩니다
             </div>
-            <div class="sticker-panel-grid" id="userStickerList"></div>
+            <div class="sticker-panel-container">
+              <button class="sticker-nav-btn" onclick="scrollStickers(-1)" id="stickerPrevBtn" disabled>&#10094;</button>
+              <div class="sticker-scroll-viewport">
+                <div class="sticker-panel-grid" id="userStickerList"></div>
+              </div>
+              <button class="sticker-nav-btn" onclick="scrollStickers(1)" id="stickerNextBtn" disabled>&#10095;</button>
+            </div>
             <div style="margin-top:0.6rem;display:flex;gap:0.4rem;">
               <button class="btn btn-ghost btn-sm" style="flex:1;font-size:0.7rem;" onclick="clearAllStickers()">🗑 전체 삭제</button>
             </div>
@@ -445,6 +477,18 @@ header { background:var(--surface); border-bottom:1px solid var(--border); paddi
               <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
               <p>클릭하여 스티커 업로드</p>
               <small>PNG 투명 배경 권장 · 여러 장 가능</small>
+            </div>
+            <div class="input-group" style="margin-bottom:0.5rem;">
+              <label style="font-size:0.7rem;">스티커 구분</label>
+              <div style="display:flex; gap:0.5rem; margin-bottom:0.3rem;">
+                <label style="font-size:0.75rem; display:flex; align-items:center; gap:0.2rem; cursor:pointer;">
+                  <input type="radio" name="stickerType" value="icon" checked> 아이콘
+                </label>
+                <label style="font-size:0.75rem; display:flex; align-items:center; gap:0.2rem; cursor:pointer;">
+                  <input type="radio" name="stickerType" value="text"> 텍스트
+                </label>
+              </div>
+              <input type="text" id="stickerNameInput" placeholder="스티커 이름 (선택사항)" style="padding:0.4rem; font-size:0.8rem; border:1.5px solid var(--border); border-radius:var(--radius-sm);">
             </div>
             <input type="file" id="stickerFileInput" class="hidden-input" accept="image/*" multiple onchange="handleStickerUpload(this)">
             <div style="background:var(--bg);border-radius:var(--radius-sm);padding:0.75rem;">
@@ -903,60 +947,100 @@ function renderUserFrameList() {
   const list    = document.getElementById('userFrameList');
   const countEl = document.getElementById('frameCount');
   const notice  = document.getElementById('noFrameNotice');
+  
+  // 현재 선택된 컷 수(modeKey)에 맞는 프레임들 필터링
   const matching = frames.filter(f => f.modeKey === currentModeKey);
-  countEl.textContent = matching.length + '개';
+  if (countEl) countEl.textContent = matching.length + '개';
 
   if (!frames.length) {
     list.innerHTML = '<div class="frame-empty">등록된 프레임이 없습니다</div>';
-    notice.style.display = 'block'; return;
+    if (notice) notice.style.display = 'block'; 
+    return;
   }
-  notice.style.display = 'none';
+  if (notice) notice.style.display = 'none';
+  
   if (!matching.length) {
-    list.innerHTML = `<div class="frame-empty">${currentMode().label} 프레임이 없습니다</div>`; return;
+    list.innerHTML = `<div class="frame-empty">${currentMode().label} 프레임이 없습니다</div>`; 
+    return;
   }
 
-  // 폴더 목록 수집 (중복 제거, 순서 유지)
-  const folders = [...new Set(matching.map(f => f.folderName || ''))].filter(Boolean);
-  const hasFolder = folders.length > 0;
+  // 1. 폴더 루트 뷰 (activeFolder === '__all__')
+  if (activeFolder === '__all__') {
+    // 폴더별로 그룹화
+    const folderGroups = {};
+    const noFolderFrames = [];
+    
+    matching.forEach(f => {
+      if (f.folderName) {
+        if (!folderGroups[f.folderName]) folderGroups[f.folderName] = [];
+        folderGroups[f.folderName].push(f);
+      } else {
+        noFolderFrames.push(f);
+      }
+    });
 
-  // activeFolder 유효성 보정
-  if (hasFolder && activeFolder !== '__all__' && !folders.includes(activeFolder)) {
-    activeFolder = '__all__';
-  }
+    let html = '<div class="frame-list">';
+    
+    // 폴더 아이콘(대표 프레임) 렌더링
+    Object.keys(folderGroups).forEach(folderName => {
+      const representative = folderGroups[folderName][0];
+      html += `
+        <div class="frame-thumb folder-type" onclick="setFolder('${folderName.replace(/'/g, "\\'")}')" style="border-style: dashed; border-color: var(--accent);">
+          <img src="${representative.dataUrl}" alt="${folderName}" style="opacity: 0.7;">
+          <div style="position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; background:rgba(255,255,255,0.4); pointer-events:none;">
+             <span style="font-size:0.8rem; font-weight:800; color:var(--accent); background:white; padding:4px 10px; border-radius:12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">${folderName}</span>
+          </div>
+          <span class="frame-cut-badge" style="background:var(--accent-hover);">${folderGroups[folderName].length}개</span>
+        </div>`;
+    });
 
-  // 폴더 탭 렌더
-  let tabsHtml = '';
-  if (hasFolder) {
-    tabsHtml = `<div class="folder-tabs">
-      <div class="folder-tab ${activeFolder==='__all__'?'active':''}" onclick="setFolder('__all__')">전체</div>
-      ${folders.map(f=>`<div class="folder-tab ${activeFolder===f?'active':''}" data-folder="${f.replace(/"/g,'&quot;')}" onclick="setFolderEl(this)">📁 ${f}</div>`).join('')}
-    </div>`;
-  }
-
-  // 현재 폴더 프레임 필터
-  const shown = (hasFolder && activeFolder !== '__all__')
-    ? matching.filter(f => (f.folderName||'') === activeFolder)
-    : matching;
-
-  const gridHtml = shown.length
-    ? shown.map(f => `
-        <div class="frame-thumb ${selectedFrameId===f.id?'selected':''}" onclick="selectFrame('${f.id}')">
+    // 폴더가 없는 개별 프레임들 렌더링
+    noFolderFrames.forEach(f => {
+      html += `
+        <div class="frame-thumb ${selectedFrameId === f.id ? 'selected' : ''}" onclick="selectFrame('${f.id}')" title="${f.name}">
           <img src="${f.dataUrl}" alt="${f.name}">
           <span class="frame-cut-badge">${getMode(f.modeKey).label}</span>
           <span class="frame-name">${f.name}</span>
-        </div>`).join('')
-    : `<div class="frame-empty">이 폴더에 프레임이 없습니다</div>`;
+        </div>`;
+    });
 
-  list.innerHTML = tabsHtml + `<div class="frame-list">${gridHtml}</div>`;
+    html += '</div>';
+    list.innerHTML = html;
+  } 
+  // 2. 특정 폴더 내부 뷰
+  else {
+    const shown = matching.filter(f => f.folderName === activeFolder);
+    
+    let html = `
+      <div style="margin-bottom: 0.8rem; display:flex; align-items:center; gap:0.5rem;">
+        <button class="btn btn-ghost btn-sm" onclick="setFolder('__all__')" style="padding: 0.3rem 0.6rem; font-size: 0.75rem;">
+          🔙 뒤로가기
+        </button>
+        <span style="font-size:0.8rem; font-weight:700; color:var(--text-sub);">📁 ${activeFolder}</span>
+      </div>
+      <div class="frame-list">`;
+    
+    if (shown.length) {
+      html += shown.map(f => `
+        <div class="frame-thumb ${selectedFrameId === f.id ? 'selected' : ''}" onclick="selectFrame('${f.id}')" title="${f.name}">
+          <img src="${f.dataUrl}" alt="${f.name}">
+          <span class="frame-cut-badge">${getMode(f.modeKey).label}</span>
+          <span class="frame-name">${f.name}</span>
+        </div>`).join('');
+    } else {
+      html += `<div class="frame-empty">해당 폴더에 프레임이 없습니다</div>`;
+    }
+    
+    html += '</div>';
+    list.innerHTML = html;
+  }
 }
 
 function setFolder(name) {
   activeFolder = name;
   renderUserFrameList();
 }
-function setFolderEl(el) {
-  setFolder(el.dataset.folder);
-}
+
 
 function selectFrame(id) {
   selectedFrameId = (selectedFrameId === id) ? null : id;
@@ -1045,7 +1129,7 @@ async function exportHtml() {
 
     // BUILTIN_STICKERS = [...]; 를 현재 스티커 데이터로 교체
     const stickersJson = JSON.stringify(adminStickers.map(s => ({
-      id: s.id, name: s.name, src: s.src
+      id: s.id, name: s.name, type: s.type || 'icon', src: s.src
     })));
     html = html.replace(
       /const BUILTIN_STICKERS\s*=\s*\[[\s\S]*?\];/,
@@ -1135,10 +1219,19 @@ function injectPngDpi(dataUrl, dpi) {
 // STICKER — 관리자 업로드 & 렌더
 // ═══════════════════════════════════════════
 function handleStickerUpload(input) {
+  const nameInput = document.getElementById('stickerNameInput');
+  const customName = nameInput.value.trim();
+  const type = document.querySelector('input[name="stickerType"]:checked').value;
+  
   Array.from(input.files).forEach(file => {
     const r = new FileReader();
     r.onload = e => {
-      adminStickers.push({ id: Date.now() + Math.random().toString(36).slice(2), name: file.name.replace(/\.[^.]+$/, ''), src: e.target.result });
+      adminStickers.push({ 
+        id: Date.now() + Math.random().toString(36).slice(2), 
+        name: customName || file.name.replace(/\.[^.]+$/, ''), 
+        type: type,
+        src: e.target.result 
+      });
       renderAdminStickerList();
       renderUserStickerList();
       showToast('스티커 등록 완료');
@@ -1146,6 +1239,7 @@ function handleStickerUpload(input) {
     r.readAsDataURL(file);
   });
   input.value = '';
+  nameInput.value = '';
 }
 
 function renderAdminStickerList() {
@@ -1157,8 +1251,9 @@ function renderAdminStickerList() {
     return;
   }
   list.innerHTML = adminStickers.map(s => `
-    <div style="position:relative;">
+    <div style="position:relative; display:flex; flex-direction:column; align-items:center;">
       <div class="sticker-thumb"><img src="${s.src}" alt="${s.name}"></div>
+      <div style="font-size:0.6rem; color:var(--text-muted); margin-top:2px; max-width:60px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">[${s.type === 'icon' ? '아이콘' : '텍스트'}] ${s.name}</div>
       <button onclick="deleteAdminSticker('${s.id}')" style="position:absolute;top:-6px;right:-6px;width:18px;height:18px;background:#ff4757;color:#fff;border:none;border-radius:50%;font-size:11px;cursor:pointer;line-height:18px;text-align:center;padding:0;">✕</button>
     </div>`).join('');
 }
@@ -1170,17 +1265,73 @@ function deleteAdminSticker(id) {
   showToast('스티커 삭제됨');
 }
 
+let currentStickerPage = 0;
+let selectedStickerType = 'icon';
+
+function switchStickerType(type) {
+  selectedStickerType = type;
+  document.querySelectorAll('.sticker-type-tab').forEach(tab => tab.classList.remove('active'));
+  document.getElementById('tab-sticker-' + type).classList.add('active');
+  renderUserStickerList();
+}
+
 function renderUserStickerList() {
   const list   = document.getElementById('userStickerList');
   const notice = document.getElementById('noStickerNotice');
   const cnt    = document.getElementById('stickerCount');
-  cnt.textContent = adminStickers.length + '개';
-  if (!adminStickers.length) { notice.style.display = 'block'; list.innerHTML = ''; return; }
+  
+  const filteredStickers = adminStickers.filter(s => (s.type || 'icon') === selectedStickerType);
+  
+  cnt.textContent = filteredStickers.length + '개';
+  if (!filteredStickers.length) { 
+    notice.style.display = 'block'; 
+    list.innerHTML = ''; 
+    updateStickerNav();
+    return; 
+  }
   notice.style.display = 'none';
-  list.innerHTML = adminStickers.map(s => `
-    <div class="sticker-thumb" onclick="placeSticker('${s.id}')" title="클릭하여 추가">
-      <img src="${s.src}" alt="${s.name}">
+  list.innerHTML = filteredStickers.map(s => `
+    <div style="display:flex; flex-direction:column; align-items:center;">
+      <div class="sticker-thumb" onclick="placeSticker('${s.id}')" title="${s.name}">
+        <img src="${s.src}" alt="${s.name}">
+      </div>
     </div>`).join('');
+  
+  currentStickerPage = 0;
+  list.style.transform = 'translateX(0)';
+  updateStickerNav();
+}
+
+function scrollStickers(dir) {
+  const list = document.getElementById('userStickerList');
+  const viewport = list.parentElement;
+  const scrollAmount = viewport.offsetWidth * 0.8;
+  const maxScroll = list.scrollWidth - viewport.offsetWidth;
+  
+  if (dir > 0) {
+    currentStickerPage = Math.min(maxScroll, currentStickerPage + scrollAmount);
+  } else {
+    currentStickerPage = Math.max(0, currentStickerPage - scrollAmount);
+  }
+  
+  list.style.transform = `translateX(-${currentStickerPage}px)`;
+  updateStickerNav();
+}
+
+function updateStickerNav() {
+  const list = document.getElementById('userStickerList');
+  const viewport = list.parentElement;
+  const prevBtn = document.getElementById('stickerPrevBtn');
+  const nextBtn = document.getElementById('stickerNextBtn');
+  
+  if (!adminStickers.length || list.scrollWidth <= viewport.offsetWidth) {
+    prevBtn.disabled = true;
+    nextBtn.disabled = true;
+    return;
+  }
+  
+  prevBtn.disabled = currentStickerPage <= 0;
+  nextBtn.disabled = currentStickerPage >= (list.scrollWidth - viewport.offsetWidth);
 }
 
 // ═══════════════════════════════════════════
