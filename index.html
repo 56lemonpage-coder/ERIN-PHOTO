@@ -566,24 +566,40 @@ header { background:var(--surface); border-bottom:1px solid var(--border); paddi
 
         <!-- 내보내기 패널 -->
         <div class="panel" style="margin-top:1rem;">
-          <div class="panel-header"><span class="panel-title">📦 배포용 파일 내보내기</span></div>
+          <div class="panel-header"><span class="panel-title">🚀 GitHub 배포</span></div>
           <div class="panel-body" style="display:flex;flex-direction:column;gap:0.75rem;">
             <p style="font-size:0.76rem;color:var(--text-sub);line-height:1.6;">
-              현재 등록된 프레임을 HTML 파일 안에 <strong>영구 내장</strong>하여 다운로드합니다.<br>
-              GitHub Pages에 올리면 모든 이용자가 항상 동일한 프레임을 볼 수 있어요.
+              새 프레임을 GitHub에 직접 업로드하고 자동으로 배포합니다.<br>
+              <strong>한 번만 설정하면 이후엔 버튼 하나로 완료!</strong>
             </p>
-            <div style="background:var(--bg);border-radius:var(--radius-sm);padding:0.8rem;font-size:0.7rem;color:var(--text-sub);line-height:1.7;">
-              <strong style="color:var(--text-main);">🚀 배포 순서</strong><br>
-              ① 프레임 업로드 후 아래 버튼 클릭 → HTML 다운로드<br>
-              ② GitHub 저장소의 <code>index.html</code> 파일을 교체<br>
-              ③ Commit &amp; Push → 1~2분 후 반영 완료
+            <div style="display:flex;flex-direction:column;gap:0.5rem;">
+              <label style="font-size:0.74rem;font-weight:600;color:var(--text-sub);">GitHub Token</label>
+              <input type="password" id="ghToken" placeholder="ghp_xxxxxxxxxxxx"
+                style="width:100%;padding:0.5rem 0.75rem;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:0.78rem;font-family:inherit;background:var(--bg);"
+                oninput="localStorage.setItem('gh_token', this.value)">
+              <label style="font-size:0.74rem;font-weight:600;color:var(--text-sub);">레포지토리 (예: username/ERIN-PHOTO)</label>
+              <input type="text" id="ghRepo" placeholder="56lemonpage-coder/ERIN-PHOTO"
+                style="width:100%;padding:0.5rem 0.75rem;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:0.78rem;font-family:inherit;background:var(--bg);"
+                oninput="localStorage.setItem('gh_repo', this.value)">
             </div>
-            <button class="btn btn-accent" style="width:100%;justify-content:center;gap:0.5rem;padding:0.7rem;" onclick="exportHtml()">
-              <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
-              HTML로 내보내기
+            <button class="btn btn-primary" style="width:100%;justify-content:center;gap:0.5rem;padding:0.7rem;" onclick="deployToGitHub()">
+              <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+              GitHub에 배포하기
             </button>
-            <p id="exportStatus" style="font-size:0.7rem;color:var(--text-muted);text-align:center;display:none;"></p>
+            <p id="deployStatus" style="font-size:0.7rem;color:var(--text-muted);text-align:center;display:none;white-space:pre-line;"></p>
+            <details style="font-size:0.7rem;color:var(--text-sub);">
+              <summary style="cursor:pointer;font-weight:600;">🔑 Token 발급 방법</summary>
+              <div style="margin-top:0.5rem;line-height:1.8;">
+                1. GitHub → Settings → Developer settings<br>
+                2. Personal access tokens → Tokens (classic)<br>
+                3. Generate new token → <strong>repo</strong> 권한 체크<br>
+                4. 생성된 토큰을 위에 입력
+              </div>
+            </details>
           </div>
+        </div>
+        <div style="display:none">
+          <p id="exportStatus" style="font-size:0.7rem;color:var(--text-muted);text-align:center;display:none;"></p>
         </div>
       </div>
     </div>
@@ -721,6 +737,13 @@ function init() {
   buildStrip();
   renderUserFrameList();
   renderAdminFrameList();
+
+  // GitHub 설정 복원
+  const savedToken = localStorage.getItem('gh_token');
+  const savedRepo = localStorage.getItem('gh_repo');
+  if (savedToken && document.getElementById('ghToken')) document.getElementById('ghToken').value = savedToken;
+  if (savedRepo && document.getElementById('ghRepo')) document.getElementById('ghRepo').value = savedRepo;
+
   renderAdminStickerList();
   renderUserStickerList();
 }
@@ -1102,9 +1125,10 @@ function handleFrameUpload(input) {
     const r = new FileReader();
     r.onload = e => {
       const folder = (document.getElementById('frameFolderInput')||{}).value||'';
-      frames.push({ id: Date.now()+Math.random().toString(36).slice(2), name: file.name.replace(/\.[^.]+$/,''), dataUrl: e.target.result, modeKey: adminUploadModeKey, size: (file.size/1024).toFixed(0)+'KB', folderName: folder.trim() });
+      const frameName = file.name.replace(/\.[^.]+$/,'');
+      frames.push({ id: Date.now()+Math.random().toString(36).slice(2), name: frameName, dataUrl: e.target.result, modeKey: adminUploadModeKey, size: (file.size/1024).toFixed(0)+'KB', folderName: folder.trim(), _file: file });
       renderUserFrameList(); renderAdminFrameList();
-      showToast(`프레임 등록 완료 (${getMode(adminUploadModeKey).label})`);
+      showToast(`프레임 등록 완료 (${getMode(adminUploadModeKey).label}) — GitHub 배포 버튼을 눌러주세요!`);
     };
     r.readAsDataURL(file);
   });
@@ -1131,6 +1155,135 @@ function deleteFrame(id) {
   if (selectedFrameId === id) { selectedFrameId = null; }
   renderUserFrameList(); renderAdminFrameList(); buildStrip(); showToast('프레임 삭제됨');
 }
+
+// ═══════════════════════════════════════════
+// GITHUB DEPLOY — 프레임을 GitHub에 직접 업로드
+// ═══════════════════════════════════════════
+async function deployToGitHub() {
+  const token = document.getElementById('ghToken').value.trim();
+  const repo = document.getElementById('ghRepo').value.trim();
+  const statusEl = document.getElementById('deployStatus');
+
+  if (!token || !repo) {
+    showToast('Token과 레포지토리를 입력해주세요');
+    return;
+  }
+
+  // 새로 업로드된 프레임만 (dataUrl 있고 src 없는 것)
+  const newFrames = frames.filter(f => f.dataUrl && !f.src);
+  if (!newFrames.length) {
+    showToast('새로 추가된 프레임이 없습니다');
+    return;
+  }
+
+  statusEl.style.display = 'block';
+  statusEl.textContent = '⏳ GitHub에 업로드 중...';
+
+  const apiBase = `https://api.github.com/repos/${repo}`;
+  const headers = {
+    'Authorization': `token ${token}`,
+    'Content-Type': 'application/json'
+  };
+
+  try {
+    // 1. 현재 index.html SHA 가져오기
+    const htmlRes = await fetch(`${apiBase}/contents/index.html`, { headers });
+    const htmlData = await htmlRes.json();
+    const htmlSha = htmlData.sha;
+
+    // 2. 각 프레임 PNG를 frames/ 폴더에 업로드
+    let uploadedCount = 0;
+    for (const frame of newFrames) {
+      // 파일명: 기존 번호 이어서 (frame_XX.png)
+      const existingNums = frames
+        .filter(f => f.src && f.src.match(/frame_(\d+)\.png/))
+        .map(f => parseInt(f.src.match(/frame_(\d+)\.png/)[1]));
+      const maxNum = existingNums.length ? Math.max(...existingNums) : 0;
+      const idx = maxNum + newFrames.indexOf(frame) + 1;
+      const filename = `frame_${String(idx).padStart(2,'0')}.png`;
+
+      // base64 데이터 추출
+      const b64 = frame.dataUrl.split(',')[1];
+
+      statusEl.textContent = `⏳ 업로드 중... (${uploadedCount+1}/${newFrames.length}) ${filename}`;
+
+      // GitHub API로 파일 업로드
+      const uploadRes = await fetch(`${apiBase}/contents/frames/${filename}`, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify({
+          message: `프레임 추가: ${frame.name}`,
+          content: b64
+        })
+      });
+
+      if (!uploadRes.ok) {
+        const err = await uploadRes.json();
+        throw new Error(`파일 업로드 실패: ${err.message}`);
+      }
+
+      // frame 객체 업데이트
+      frame.src = `./frames/${filename}`;
+      delete frame.dataUrl;
+      delete frame._file;
+      uploadedCount++;
+    }
+
+    // 3. index.html 업데이트 (BUILTIN_FRAMES 갱신)
+    statusEl.textContent = '⏳ index.html 업데이트 중...';
+
+    const currentHtml = await fetch(location.href).then(r => r.text());
+    const framesJson = JSON.stringify(frames.map(f => ({
+      id: f.id,
+      name: f.name,
+      ...(f.src ? { src: f.src } : { dataUrl: f.dataUrl }),
+      modeKey: f.modeKey,
+      size: f.size || '',
+      folderName: f.folderName || ''
+    })));
+    const stickersJson = JSON.stringify(adminStickers.map(s => ({
+      id: s.id, name: s.name, type: s.type || 'icon', src: s.src
+    })));
+
+    let newHtml = currentHtml.replace(
+      /const BUILTIN_FRAMES\s*=\s*\[[\s\S]*?\];/,
+      'const BUILTIN_FRAMES = ' + framesJson + ';'
+    );
+    newHtml = newHtml.replace(
+      /const BUILTIN_STICKERS\s*=\s*\[[\s\S]*?\];/,
+      'const BUILTIN_STICKERS = ' + stickersJson + ';'
+    );
+
+    const encoder = new TextEncoder();
+    const htmlBytes = encoder.encode(newHtml);
+    const htmlB64 = btoa(String.fromCharCode(...htmlBytes));
+
+    const updateRes = await fetch(`${apiBase}/contents/index.html`, {
+      method: 'PUT',
+      headers,
+      body: JSON.stringify({
+        message: `프레임 ${uploadedCount}개 추가`,
+        content: htmlB64,
+        sha: htmlSha
+      })
+    });
+
+    if (!updateRes.ok) {
+      const err = await updateRes.json();
+      throw new Error(`index.html 업데이트 실패: ${err.message}`);
+    }
+
+    statusEl.textContent = `✅ 완료! ${uploadedCount}개 프레임 배포됨
+1~2분 후 사이트에 반영됩니다.`;
+    showToast(`🚀 ${uploadedCount}개 프레임 GitHub 배포 완료!`);
+    renderAdminFrameList();
+
+  } catch (err) {
+    statusEl.textContent = `❌ 오류: ${err.message}`;
+    showToast('배포 실패: ' + err.message);
+  }
+}
+
 // ═══════════════════════════════════════════
 // EXPORT — 프레임 내장 HTML 파일 생성
 // 현재 frames 배열을 BUILTIN_FRAMES에 주입한 새 HTML을 다운로드
