@@ -200,7 +200,7 @@ header { background:var(--surface); border-bottom:1px solid var(--border); paddi
   display:grid; 
   grid-template-rows: repeat(2, auto); /* 두 줄 표시 */
   grid-auto-flow: column; /* 가로로 흐르게 설정 */
-  grid-auto-columns: 58px; /* 고정 너비: 오버플로우 방지 */
+  grid-auto-columns: clamp(52px, 9vw, 72px); /* 반응형 너비 */
   gap:0.4rem; 
   transition: transform 0.3s ease;
 }
@@ -220,7 +220,7 @@ header { background:var(--surface); border-bottom:1px solid var(--border); paddi
 .sticker-thumb {
   aspect-ratio:1; border:2px solid var(--border); border-radius:var(--radius-sm);
   cursor:pointer; overflow:hidden; background:var(--bg);
-  display:flex; align-items:center; justify-content:center; padding:4px;
+  display:flex; align-items:center; justify-content:center; padding:5px;
   transition:all 0.15s;
 }
 .sticker-thumb:hover { border-color:var(--accent); transform:scale(1.05); }
@@ -279,7 +279,7 @@ header { background:var(--surface); border-bottom:1px solid var(--border); paddi
   .frame-list { grid-template-columns:repeat(3,1fr); }
 
   /* 스티커 그리드 */
-  .sticker-panel-grid { grid-template-columns:repeat(5,1fr); }
+  .sticker-panel-grid { grid-auto-columns: clamp(60px, 17vw, 80px); gap: 0.5rem; }
 
   /* 관리자 */
   .admin-grid { grid-template-columns:1fr !important; }
@@ -294,7 +294,7 @@ header { background:var(--surface); border-bottom:1px solid var(--border); paddi
 
 @media (max-width:400px) {
   .frame-list { grid-template-columns:repeat(2,1fr); }
-  .sticker-panel-grid { grid-template-columns:repeat(4,1fr); }
+  .sticker-panel-grid { grid-auto-columns: clamp(56px, 16vw, 72px); }
 }
 
 /* ── SPLASH ── */
